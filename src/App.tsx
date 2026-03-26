@@ -37,6 +37,34 @@
  * - crystal: 水晶风格 - ice-like, magical sparkle, ethereal glow
  *
  * ────────────────────────────────────────────────────────────────────────
+ *
+ * 【已知问题与解决方案】
+ * ────────────────────────────────────────────────────────────────────────
+ *
+ * ⚠️ 问题1: 中文 Prompt 导致生成古风人物
+ * 原因: SDXL 模型对中文理解较差，会将中文描述误识别为"中国古风"、"古画"等
+ * 解决: 必须使用英文 Prompt
+ *
+ * ⚠️ 问题2: NSFW 内容检测误报
+ * 原因: 某些词汇（如 sparkling, magical, ethereal, gorgeous 等）可能触发敏感词检测
+ * 解决: 简化 Prompt，避免使用可能触发检测的词汇
+ *
+ * ⚠️ 问题3: 生成结果有倒影/阴影
+ * 原因: 默认 prompt 包含 studio lighting, reflections 等词汇
+ * 解决: 在 negative_prompt 中添加 shadow, reflection, mirror 排除词
+ *
+ * ⚠️ 问题4: SDXL 不支持透明背景
+ * 原因: SDXL 模型只能生成 RGB 图片，不支持真正的 alpha 通道透明度
+ * 解决: 虽然 prompt 中写了 transparent background，但实际输出仍是灰色/白色背景
+ *       如需透明背景，建议:
+ *       1. 使用后处理工具（Photoshop、GIMP 等）手动去背景
+ *       2. 或考虑使用支持透明度的模型（如 FLUX、SD3 等）
+ *
+ * ⚠️ 问题5: PNG 格式但无真正透明通道
+ * 表现: 图片是 PNG 格式，但背景不是真正的透明（alpha=0），而是灰白色
+ * 原因: SDXL 输出的"透明背景"只是在 prompt 中的一种描述期望，实际无法实现
+ *
+ * ────────────────────────────────────────────────────────────────────────
  */
 
 import { useState } from 'react'
@@ -72,43 +100,43 @@ interface GeneratedImage {
   negativePrompt: string
 }
 
-// 默认 Prompt 模板（中文）
+// Default Prompt Templates (English)
 const DEFAULT_PROMPTS: Record<string, Record<string, { prompt: string; negativePrompt: string }>> = {
   ruby: {
-    icon: { prompt: '精美的红宝石图标，明亮式切工，深红色，闪耀光泽，透明水晶，精细刻面，透明背景，工作室灯光，高度详细，3D渲染，图标设计，简洁风格', negativePrompt: '丑陋，模糊，低质量，写实照片，水印，文字，logo' },
-    realistic: { prompt: '逼真的红宝石照片，详细纹理，自然光线，高分辨率，专业摄影，红宝石特写', negativePrompt: '丑陋，模糊，低质量，卡通风格，水印，文字，logo' },
-    cartoon: { prompt: '卡通红宝石，可爱，Q版，简单背景，平面颜色，卡通风格，角色设计', negativePrompt: '逼真，低质量，水印，文字，logo' },
-    crystal: { prompt: '透明水晶，冰晶状，折射光线，魔法闪耀，飘渺光晕，详细内部反射，水晶风格', negativePrompt: '模糊，低质量，暗色背景，水印，文字，logo' },
+    icon: { prompt: 'ruby gemstone, brilliant cut, deep red color, solid crystal, clean facets, transparent background, 3d render, icon design, isolated, alpha channel', negativePrompt: 'ugly, blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, ancient, painting, shadow, reflection, background, colored background' },
+    realistic: { prompt: 'ruby gemstone, clear texture, natural light, high resolution, professional photo, gemstone photography, transparent background, isolated', negativePrompt: 'ugly, blurry, low quality, cartoon style, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background, colored background' },
+    cartoon: { prompt: 'cartoon ruby gem, simple style, flat colors, cute design, icon, transparent background, isolated', negativePrompt: 'realistic, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background' },
+    crystal: { prompt: 'ruby crystal, clean design, transparent background, flat icon style, isolated, alpha channel', negativePrompt: 'blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, refraction, background, colored background' },
   },
   emerald: {
-    icon: { prompt: '精美的祖母绿图标，祖母绿式切工，翠绿色，闪耀光泽，透明水晶，精细刻面，透明背景，工作室灯光，高度详细，3D渲染，图标设计，简洁风格', negativePrompt: '丑陋，模糊，低质量，写实照片，水印，文字，logo' },
-    realistic: { prompt: '逼真的祖母绿照片，详细纹理，自然光线，高分辨率，专业摄影，祖母绿特写', negativePrompt: '丑陋，模糊，低质量，卡通风格，水印，文字，logo' },
-    cartoon: { prompt: '卡通祖母绿，可爱，Q版，简单背景，平面颜色，卡通风格，角色设计', negativePrompt: '逼真，低质量，水印，文字，logo' },
-    crystal: { prompt: '透明水晶，冰晶状，折射光线，魔法闪耀，飘渺光晕，详细内部反射，水晶风格', negativePrompt: '模糊，低质量，暗色背景，水印，文字，logo' },
+    icon: { prompt: 'emerald gemstone, emerald cut, green color, solid crystal, clean facets, transparent background, 3d render, icon design, isolated, alpha channel', negativePrompt: 'ugly, blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, ancient, painting, shadow, reflection, background, colored background' },
+    realistic: { prompt: 'emerald gemstone, clear texture, natural light, high resolution, professional photo, gemstone photography, transparent background, isolated', negativePrompt: 'ugly, blurry, low quality, cartoon style, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background, colored background' },
+    cartoon: { prompt: 'cartoon emerald gem, simple style, flat colors, cute design, icon, transparent background, isolated', negativePrompt: 'realistic, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background' },
+    crystal: { prompt: 'emerald crystal, clean design, transparent background, flat icon style, isolated, alpha channel', negativePrompt: 'blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, refraction, background, colored background' },
   },
   sapphire: {
-    icon: { prompt: '精美的蓝宝石图标，明亮式切工，皇家蓝色，闪耀光泽，透明水晶，精细刻面，透明背景，工作室灯光，高度详细，3D渲染，图标设计，简洁风格', negativePrompt: '丑陋，模糊，低质量，写实照片，水印，文字，logo' },
-    realistic: { prompt: '逼真的蓝宝石照片，详细纹理，自然光线，高分辨率，专业摄影，蓝宝石特写', negativePrompt: '丑陋，模糊，低质量，卡通风格，水印，文字，logo' },
-    cartoon: { prompt: '卡通蓝宝石，可爱，Q版，简单背景，平面颜色，卡通风格，角色设计', negativePrompt: '逼真，低质量，水印，文字，logo' },
-    crystal: { prompt: '透明水晶，冰晶状，折射光线，魔法闪耀，飘渺光晕，详细内部反射，水晶风格', negativePrompt: '模糊，低质量，暗色背景，水印，文字，logo' },
+    icon: { prompt: 'sapphire gemstone, brilliant cut, blue color, solid crystal, clean facets, transparent background, 3d render, icon design, isolated, alpha channel', negativePrompt: 'ugly, blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, ancient, painting, shadow, reflection, background, colored background' },
+    realistic: { prompt: 'sapphire gemstone, clear texture, natural light, high resolution, professional photo, gemstone photography, transparent background, isolated', negativePrompt: 'ugly, blurry, low quality, cartoon style, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background, colored background' },
+    cartoon: { prompt: 'cartoon sapphire gem, simple style, flat colors, cute design, icon, transparent background, isolated', negativePrompt: 'realistic, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background' },
+    crystal: { prompt: 'sapphire crystal, clean design, transparent background, flat icon style, isolated, alpha channel', negativePrompt: 'blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, refraction, background, colored background' },
   },
   diamond: {
-    icon: { prompt: '精美的钻石图标，明亮式切工，纯白色光泽，彩虹光线反射，透明水晶，精细刻面，透明背景，工作室灯光，高度详细，3D渲染，图标设计，简洁风格', negativePrompt: '丑陋，模糊，低质量，写实照片，水印，文字，logo' },
-    realistic: { prompt: '逼真的钻石照片，详细纹理，自然光线，高分辨率，专业摄影，钻石特写，彩虹反射', negativePrompt: '丑陋，模糊，低质量，卡通风格，水印，文字，logo' },
-    cartoon: { prompt: '卡通钻石，可爱，Q版，简单背景，平面颜色，卡通风格，角色设计', negativePrompt: '逼真，低质量，水印，文字，logo' },
-    crystal: { prompt: '透明水晶，冰晶状，折射光线，魔法闪耀，飘渺光晕，详细内部反射，彩虹光芒', negativePrompt: '模糊，低质量，暗色背景，水印，文字，logo' },
+    icon: { prompt: 'diamond gemstone, brilliant cut, white color, solid crystal, clean facets, transparent background, 3d render, icon design, isolated, alpha channel', negativePrompt: 'ugly, blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, ancient, painting, shadow, reflection, background, colored background' },
+    realistic: { prompt: 'diamond gemstone, clear texture, natural light, high resolution, professional photo, gemstone photography, transparent background, isolated', negativePrompt: 'ugly, blurry, low quality, cartoon style, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background, colored background' },
+    cartoon: { prompt: 'cartoon diamond gem, simple style, flat colors, cute design, icon, transparent background, isolated', negativePrompt: 'realistic, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background' },
+    crystal: { prompt: 'diamond crystal, clean design, transparent background, flat icon style, isolated, alpha channel', negativePrompt: 'blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, refraction, background, colored background' },
   },
   amethyst: {
-    icon: { prompt: '精美的紫水晶图标，明亮式切工，深紫色，闪耀光泽，透明水晶，精细刻面，透明背景，工作室灯光，高度详细，3D渲染，图标设计，简洁风格', negativePrompt: '丑陋，模糊，低质量，写实照片，水印，文字，logo' },
-    realistic: { prompt: '逼真的紫水晶照片，详细纹理，自然光线，高分辨率，专业摄影，紫水晶特写', negativePrompt: '丑陋，模糊，低质量，卡通风格，水印，文字，logo' },
-    cartoon: { prompt: '卡通紫水晶，可爱，Q版，简单背景，平面颜色，卡通风格，角色设计', negativePrompt: '逼真，低质量，水印，文字，logo' },
-    crystal: { prompt: '透明水晶，冰晶状，折射光线，魔法闪耀，飘渺光晕，详细内部反射，水晶风格', negativePrompt: '模糊，低质量，暗色背景，水印，文字，logo' },
+    icon: { prompt: 'amethyst gemstone, brilliant cut, purple color, solid crystal, clean facets, transparent background, 3d render, icon design, isolated, alpha channel', negativePrompt: 'ugly, blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, ancient, painting, shadow, reflection, background, colored background' },
+    realistic: { prompt: 'amethyst gemstone, clear texture, natural light, high resolution, professional photo, gemstone photography, transparent background, isolated', negativePrompt: 'ugly, blurry, low quality, cartoon style, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background, colored background' },
+    cartoon: { prompt: 'cartoon amethyst gem, simple style, flat colors, cute design, icon, transparent background, isolated', negativePrompt: 'realistic, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background' },
+    crystal: { prompt: 'amethyst crystal, clean design, transparent background, flat icon style, isolated, alpha channel', negativePrompt: 'blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, refraction, background, colored background' },
   },
   topaz: {
-    icon: { prompt: '精美的黄玉图标，明亮式切工，金黄色，闪耀光泽，透明水晶，精细刻面，透明背景，工作室灯光，高度详细，3D渲染，图标设计，简洁风格', negativePrompt: '丑陋，模糊，低质量，写实照片，水印，文字，logo' },
-    realistic: { prompt: '逼真的黄玉照片，详细纹理，自然光线，高分辨率，专业摄影，黄玉特写', negativePrompt: '丑陋，模糊，低质量，卡通风格，水印，文字，logo' },
-    cartoon: { prompt: '卡通黄玉，可爱，Q版，简单背景，平面颜色，卡通风格，角色设计', negativePrompt: '逼真，低质量，水印，文字，logo' },
-    crystal: { prompt: '透明水晶，冰晶状，折射光线，魔法闪耀，飘渺光晕，详细内部反射，水晶风格', negativePrompt: '模糊，低质量，暗色背景，水印，文字，logo' },
+    icon: { prompt: 'topaz gemstone, brilliant cut, yellow color, solid crystal, clean facets, transparent background, 3d render, icon design, isolated, alpha channel', negativePrompt: 'ugly, blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, ancient, painting, shadow, reflection, background, colored background' },
+    realistic: { prompt: 'topaz gemstone, clear texture, natural light, high resolution, professional photo, gemstone photography, transparent background, isolated', negativePrompt: 'ugly, blurry, low quality, cartoon style, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background, colored background' },
+    cartoon: { prompt: 'cartoon topaz gem, simple style, flat colors, cute design, icon, transparent background, isolated', negativePrompt: 'realistic, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, background' },
+    crystal: { prompt: 'topaz crystal, clean design, transparent background, flat icon style, isolated, alpha channel', negativePrompt: 'blurry, low quality, watermark, text, logo, nsfw, inappropriate, people, person, human, figure, shadow, reflection, refraction, background, colored background' },
   },
 }
 
@@ -408,6 +436,24 @@ function App() {
                     type="info"
                     message="费用说明"
                     description="SDXL 模型约 $0.01-0.02/次，生成 6 张大约 $0.06-0.12，按需付费"
+                    style={{ marginTop: 8 }}
+                  />
+                  <Alert
+                    type="warning"
+                    message="已知问题"
+                    description={
+                      <Space direction="vertical" size="small">
+                        <Text style={{ fontSize: 12 }}>
+                          ⚠️ <Text strong>中文 Prompt 问题</Text>：请勿使用中文 prompt，SDXL 会将其误识别为"中国古风"
+                        </Text>
+                        <Text style={{ fontSize: 12 }}>
+                          ⚠️ <Text strong>无真正透明背景</Text>：SDXL 不支持透明 alpha 通道，输出 PNG 背景实际是灰白色，需用 PS 等工具去背景
+                        </Text>
+                        <Text style={{ fontSize: 12 }}>
+                          ⚠️ <Text strong>可能有倒影/阴影</Text>：已添加排除词，如仍出现可手动编辑 prompt
+                        </Text>
+                      </Space>
+                    }
                     style={{ marginTop: 8 }}
                   />
                 </Space>
